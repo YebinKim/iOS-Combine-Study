@@ -6,5 +6,6 @@
         <page name='Publishers &amp; Subscribers'/>
         <page name='Transforming Operators'/>
         <page name='Filtering Operators'/>
+        <page name='Combining Operator'/>
     </pages>
 </playground>

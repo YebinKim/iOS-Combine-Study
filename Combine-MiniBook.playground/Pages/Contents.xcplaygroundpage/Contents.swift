@@ -11,6 +11,7 @@
  ## Operators
  - Transforming Operators
  - Filtering Operators
+ - Combining Operator
  
  */
 
