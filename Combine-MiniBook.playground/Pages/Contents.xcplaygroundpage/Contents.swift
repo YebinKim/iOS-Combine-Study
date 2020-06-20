@@ -12,6 +12,7 @@
  - Transforming Operators
  - Filtering Operators
  - Combining Operator
+ - Time Manipulation Operators
  
  */
 
