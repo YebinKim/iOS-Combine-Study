@@ -13,7 +13,7 @@
  - Filtering Operators
  - Combining Operator
  - Time Manipulation Operators
- 
+ - Sequence Operators
  */
 
 //: [Next](@next)

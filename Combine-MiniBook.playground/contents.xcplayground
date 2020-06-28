@@ -8,5 +8,6 @@
         <page name='Filtering Operators'/>
         <page name='Combining Operator'/>
         <page name='Time Manipulation Operators'/>
+        <page name='Sequence Operators'/>
     </pages>
 </playground>
