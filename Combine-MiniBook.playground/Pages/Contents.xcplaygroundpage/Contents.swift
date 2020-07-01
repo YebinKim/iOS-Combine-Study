@@ -14,6 +14,11 @@
  - Combining Operator
  - Time Manipulation Operators
  - Sequence Operators
+ 
+ ## Combine in Action
+ - Networking
+ - Debugging
+ - Timers
  */
 
 //: [Next](@next)

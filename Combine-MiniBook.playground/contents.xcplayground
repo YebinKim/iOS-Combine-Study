@@ -9,5 +9,6 @@
         <page name='Combining Operator'/>
         <page name='Time Manipulation Operators'/>
         <page name='Sequence Operators'/>
+        <page name='Networking'/>
     </pages>
 </playground>
