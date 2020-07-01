@@ -20,7 +20,7 @@ import Combine
  - *first()* : sequence 내의 첫 번째 값을 찾음, lazy 하게 동작
  - *last()* : sequence 내의 마지막 값을 찾음, greedy 하게 동작
  - ouput(at:) : sequence 내의 특정 인덱스(at)까지만 값을 방출함, greedy 하게 동작
- - ouput(in:) : sequence 내의 특정 범위(in)에 해당하는 값만 방출함, greedy 하게 동작\
+ - ouput(in:) : sequence 내의 특정 범위(in)에 해당하는 값만 방출함, greedy 하게 동작
  */
 
 /*:
