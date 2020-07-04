@@ -10,5 +10,6 @@
         <page name='Time Manipulation Operators'/>
         <page name='Sequence Operators'/>
         <page name='Networking'/>
+        <page name='Debugging'/>
     </pages>
 </playground>
