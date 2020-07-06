@@ -26,15 +26,15 @@ import Combine
 //    .sink { _ in }
 
 class TimeLogger: TextOutputStream {
-    
+
     private var previous = Date()
     private let formatter = NumberFormatter()
-    
+
     init() {
         formatter.maximumFractionDigits = 5
         formatter.minimumFractionDigits = 5
     }
-    
+
     func write(_ string: String) {
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -78,6 +78,7 @@ request
 
  - *breakpointOnError()* : Upstream publisher에서 오류가 발생하면 break 시키는 연산자
  - *breakpoint(receiveSubscription:receiveOutput:receiveCompletion:)* : 다양한 종류의 이벤트를 가로채고 break 여부를 사례별로 결정할 수 있는 연산자
+    - 각 state에서 true로 반환되는 단계에 브레이크포인트 설정
  */
 
 let publisher = PassthroughSubject<String?, Never>()
