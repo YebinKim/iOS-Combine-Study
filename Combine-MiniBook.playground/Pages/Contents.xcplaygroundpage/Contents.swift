@@ -19,6 +19,8 @@
  - Networking
  - Debugging
  - Timers
+ - Key-Value Observing
+ - Resource Management
  */
 
 //: [Next](@next)
