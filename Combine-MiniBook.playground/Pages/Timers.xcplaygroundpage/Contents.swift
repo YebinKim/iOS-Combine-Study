@@ -15,6 +15,7 @@ import Combine
  - 기본 스레드와 스레드 클래스를 사용해 생성한 스레드는 자체 RunLoop를 가짐
    - RunLoop.current 를 호출하면 Foundation 에서 자동으로 생성됨
    - RunLoop는 *Scheduler* 프로토콜을 구현함
+   - 메인 스레드가 아닌 경우 RunLoop가 없을 수 있음 (RunLoop가 생성되는 타이밍은 OS가 결정하기 때문에) 사용에 주의
  */
 
 let runLoop = RunLoop.main
@@ -52,7 +53,8 @@ let timerClassSubscription = Timer
  - Interval 마다 queue에서 반복 작업 수행
  */
 
-let queue = DispatchQueue.main
+//let queue = DispatchQueue.main
+let queue = OperationQueue()
 let source = PassthroughSubject<Int, Never>()
 
 var counter = 0

@@ -8,6 +8,7 @@ import Combine
 
  - *KVO* 에 호환되는 프로퍼티를 생성할 수 있는 Publisher
  - *ObservableObject* 프로토콜을 사용하면 다수의 값 변화를 다룰 수 있음
+  - KVO를 사용하기 위해서는 KVC(Key-Value Coding)을 지원해야 함
  */
 
 /*:
@@ -42,9 +43,9 @@ let queueSubscription = queue.publisher(for: \.operationCount)
  - Default - [.initial]
    - *.initial* : 초기값을 방출
    - *.prior* : 변화가 있을 때 이전 값과 새로 받은 값을 방출
-   - *.new* : 적용 가능할 때, change dictionary에 새로운 속성 값을 제공해야 함
+   - *.new* : 적용 가능할 때, change dictionary에 새로운 속성 값을 제공해야 함 -> (쉽게 이해하자면) dictionary에 newValue 값을 가지고 있음
      - Indicates that the change dictionary should provide the new attribute value, if applicable
-   - *.old* : 적용 가능할 때, change dictionary에 이후 속성 값이 포함되어야 함
+   - *.old* : 적용 가능할 때, change dictionary에 이후 속성 값이 포함되어야 함 -> (쉽게 이해하자면) dictionary에 oldValue 값을 가지고 있음
      - Indicates that the change dictionary should contain the old attribute value, if applicable
  */
 
@@ -88,11 +89,22 @@ obj.arrayProperty = [1.0, 2.0]
  - **NSObject 를 상속하지 않는 Swift 오브젝트에서 Combine KVO를 사용할 수 있게 하는 프로토콜**
  - *@Published* 속성 래퍼와 컴파일러에서 생성한 objectWillChange Publisher를 쌍으로 사용해 클래스를 만들 수 있음
  - ObservableObject 프로토콜을 준수하는 오브젝트는 objectWillChange 프로퍼티를 자동으로 생성
+  - 바뀌기 이전에 알림을 보냄 (wilChange)
+  - didChange 값을 알기 위한 방법 -> 프로퍼티 감시자에서 publisher send
  */
 
 class MonitorObject: ObservableObject {
     @Published var someProperty = false
     @Published var someOtherProperty = ""
+    
+    var oldValueProperty: Int = 0 {
+        didSet {
+            objectWillChange.send()
+            print("object did change")
+            print("oldValue \(oldValue)")
+            print("newValue \(oldValueProperty)")
+        }
+    }
 }
 
 let object = MonitorObject()
@@ -102,5 +114,6 @@ let subscription = object.objectWillChange.sink {
 
 object.someProperty = true
 object.someOtherProperty = "Hello Combine"
+object.oldValueProperty = 100
 
 //: [Next](@next)
