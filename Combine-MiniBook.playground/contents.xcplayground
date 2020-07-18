@@ -14,5 +14,6 @@
         <page name='Timers'/>
         <page name='Key-Value Observing'/>
         <page name='Resource Management'/>
+        <page name='Error Handling'/>
     </pages>
 </playground>

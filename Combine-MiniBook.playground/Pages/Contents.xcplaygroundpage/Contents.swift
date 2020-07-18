@@ -21,6 +21,9 @@
  - Timers
  - Key-Value Observing
  - Resource Management
+
+ ## Advanced Combine
+ - Error Handling
  */
 
 //: [Next](@next)
