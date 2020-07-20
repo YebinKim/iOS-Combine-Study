@@ -14,9 +14,10 @@ import Combine
 
  - 실패하지 않음을 보장할 수 있는 Failure 타입
  - Failure 타입이 Never인 Publisher에서만 사용되는 연산자
-   - *setFailureType* : custom failure 타입을 지정할 수 있다. (단, Failure 타입은 Never 타입이어야 한다.)
+   - *sink(receiveValue:)* : Publisher의 completion 이벤트는 무시하고 생성된 값만 처리
+   - *setFailureType(to:)* : custom failure 타입을 지정할 수 있다. (단, Failure 타입은 Never 타입이어야 한다.)
    - *assign(to:on:)* : key path 중 오류가 있으면 결과값으로 unhandled error를 받거나 이상 동작 발생
- - *assertNoFailure* : Swift의 *fatalError*와 비슷한 동작, Upstream에서 failure 이벤트를 완료할 수 없을 때 Debug Error 출력
+   - *assertNoFailure()* : Swift의 *fatalError*와 비슷한 동작, Upstream에서 failure 이벤트를 완료할 수 없을 때 Debug Error 출력
  */
 
 enum MyError: Error {
