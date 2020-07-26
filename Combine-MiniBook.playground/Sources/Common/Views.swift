@@ -136,3 +136,69 @@ public extension Publisher {
         view.capture(publisher: self.eraseToAnyPublisher())
     }
 }
+
+// Schedulers에서 Thread의 동작을 확인하기 위한 View
+struct RecordEventView: View {
+    let data: RecorderData
+
+    var body: some View {
+        switch self.data.event {
+        case .value:
+            return AnyView(EventValueView(index: self.data.index))
+        case .completion:
+            return AnyView(EventCompletedView())
+        case .failure:
+            return AnyView(EventFailureView())
+        }
+    }
+}
+
+public typealias SetupClosure = (ThreadRecorder) -> AnyPublisher<RecorderData, Never>
+
+public struct ThreadRecorderView: View {
+    @ObservedObject public var recorder = ThreadRecorder()
+    let title: String
+    let setup: SetupClosure
+
+    public init(title: String, setup: @escaping SetupClosure) {
+        self.title = title
+        self.setup = setup
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading) {
+            Text(title)
+                .fixedSize(horizontal: false, vertical: true)
+            List(recorder.chains.reversed()) { chain in
+                RecorderDataView(data: chain.data)
+            }
+        }.onAppear {
+            self.recorder.start(with: self.setup)
+        }
+    }
+}
+
+struct RecorderDataView: View {
+    let data: [RecorderData]
+
+    var body: some View {
+        HStack() {
+            RecordEventView(data: self.data[0])
+            if self.data[0].event == .value {
+                ForEach(data) { event in
+                    Rectangle()
+                        .frame(width: 16, height: 3, alignment: .center)
+                        .foregroundColor(.gray)
+                    if !event.context.isEmpty {
+                        Text(event.context)
+                            .padding([.leading, .trailing], 5)
+                            .padding([.top, .bottom], 2)
+                            .background(Color.gray)
+                            .foregroundColor(.white)
+                    }
+                    Text("Thread \(event.thread)")
+                }
+            }
+        }
+    }
+}

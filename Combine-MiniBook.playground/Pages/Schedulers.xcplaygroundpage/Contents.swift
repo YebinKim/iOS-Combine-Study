@@ -2,6 +2,8 @@
 
 import Foundation
 import Combine
+import SwiftUI
+import PlaygroundSupport
 
 /*:
  # Schedulars
@@ -33,12 +35,116 @@ let currentThread = Thread.current.number
 
 print("Start computation publisher on thread \(currentThread)")
 
-let subscription = computationPublisher
+let schedulingSubscription = computationPublisher
     .subscribe(on: queue)
     .receive(on: DispatchQueue.main)
     .sink { value in
         let thread = Thread.current.number
         print("Received computation result on thread \(thread): '\(value)'")
+}
+
+/*:
+ ## Scheduler implementations
+
+ - *ImmediateScheduler* : 현재 실행 thread에서 즉시 코드를 실행하는 간단한 스케줄러
+   - subscribe (on :), receive (on :) 또는 scheduler를 매개 변수로 사용하는 다른 operator를 사용하여 다른 thread에서 실행 가능
+ - *RunLoop* : Foundation의 Thread 개체에 연결
+ - *DispatchQueue* : serial 또는 concurrent 하게 작업 수행
+ - *OperationQueue* : 작업 항목의 실행을 조절하는 대기열
+ */
+
+/*:
+ ## ImmediateScheduler scheduler
+ */
+
+let immediateSchedulerSource = Timer
+  .publish(every: 1.0, on: .main, in: .common)
+  .autoconnect()
+  .scan(0) { counter, _ in counter + 1 }
+
+let immediateSchedulerSetupPublisher = { recorder in
+  immediateSchedulerSource
+    .recordThread(using: recorder)
+    .receive(on: ImmediateScheduler.shared)
+
+    .receive(on: DispatchQueue.global())
+    .recordThread(using: recorder)
+
+    .eraseToAnyPublisher()
+}
+
+//let view = ThreadRecorderView(title: "Using ImmediateScheduler", setup: immediateSchedulerSetupPublisher)
+//PlaygroundPage.current.liveView = UIHostingController(rootView: view)
+
+/*:
+ ## RunLoop scheduler
+ */
+
+var threadRecorder: ThreadRecorder? = nil
+
+let runLoopSource = Timer
+    .publish(every: 1.0, on: .main, in: .common)
+    .autoconnect()
+    .scan(0) { (counter, _) in counter + 1 }
+
+let runLoopSetupPublisher = { recorder in
+    runLoopSource
+        .handleEvents(receiveSubscription: { _ in threadRecorder = recorder })
+
+        .subscribe(on: DispatchQueue.global())
+        .recordThread(using: recorder)
+
+        .receive(on: RunLoop.current)
+        .recordThread(using: recorder)
+
+        .eraseToAnyPublisher()
+}
+
+//let view = ThreadRecorderView(title: "Using RunLoop", setup: runLoopSetupPublisher)
+//PlaygroundPage.current.liveView = UIHostingController(rootView: view)
+
+RunLoop.current.schedule(after: .init(Date(timeIntervalSinceNow: 4.5)),
+                         tolerance: .milliseconds(500)) {
+                            threadRecorder?.subscription?.cancel()
+}
+
+/*:
+ ## DispatchQueue scheduler
+ */
+
+let serialQueue = DispatchQueue(label: "Serial queue")
+let sourceQueue = serialQueue // DispatchQueue.main
+
+let dispatchQueueSource = PassthroughSubject<Void, Never>()
+let subscription = sourceQueue.schedule(after: sourceQueue.now,
+                                        interval: .seconds(1)) {
+                                            dispatchQueueSource.send()
+}
+
+let dispatchQueueSetupPublisher = { recorder in
+    dispatchQueueSource
+        .recordThread(using: recorder)
+        .receive(on: serialQueue,
+                 options: DispatchQueue.SchedulerOptions(qos: .userInteractive) )
+
+        .recordThread(using: recorder)
+        .eraseToAnyPublisher()
+}
+
+let view = ThreadRecorderView(title: "Using DispatchQueue", setup: dispatchQueueSetupPublisher)
+PlaygroundPage.current.liveView = UIHostingController(rootView: view)
+
+/*:
+ ## OperationQueue
+ */
+
+let operationQueue = OperationQueue()
+operationQueue.maxConcurrentOperationCount = 1
+
+let operationSubscription = (1...10).publisher
+    .receive(on: operationQueue)
+    .sink { value in
+        print("Received \(value) on thread \(Thread.current.number)")
 }
 
 //: [Next](@next)
