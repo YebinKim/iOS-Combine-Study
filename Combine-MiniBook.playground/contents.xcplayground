@@ -15,5 +15,6 @@
         <page name='Key-Value Observing'/>
         <page name='Resource Management'/>
         <page name='Error Handling'/>
+        <page name='Schedulers'/>
     </pages>
 </playground>

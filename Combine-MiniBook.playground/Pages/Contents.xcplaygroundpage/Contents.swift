@@ -24,6 +24,7 @@
 
  ## Advanced Combine
  - Error Handling
+ - Schedulers
  */
 
 //: [Next](@next)
