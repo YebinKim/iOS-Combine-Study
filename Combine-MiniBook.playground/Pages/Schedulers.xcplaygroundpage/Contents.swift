@@ -18,7 +18,7 @@ import PlaygroundSupport
 /*:
  ## Operators for scheduling
 
- - *subscribe(on:)/subscribe(on:options:)* : 특정 scheduler에서 subscription을 생성한다.
+ - *subscribe(on:)/subscribe(on:options:)* : 특정 scheduler에서 subscription을 생성한다. **(작업을 수행한다.)**
  - *receive(on:)/receive(on:options:)* : 특정 scheduler에서 값을 전달한다.
  - Publisher에 Subscriber을 수행했을 때 일어나는 과정
    1. Publisher가 Subscriber를 수신하고 Subscription을 생성
@@ -55,6 +55,9 @@ let schedulingSubscription = computationPublisher
 
 /*:
  ## ImmediateScheduler scheduler
+
+ - options: ImmediateScheduler를 사용할 때는 옵션 매개 변수 값을 전달할 수 없음 (타입이 Never로 정의되기 때문)
+ - pitfalls: **즉시 작업을 시작**하기 때문에 Scheduler 프로토콜의 지연 연산자인 schedule(after:) 를 사용할 수 없음
  */
 
 let immediateSchedulerSource = Timer
@@ -78,6 +81,9 @@ let immediateSchedulerSetupPublisher = { recorder in
 
 /*:
  ## RunLoop scheduler
+
+ - options: 옵션 매개 변수 값을 전달할 수 없음
+ - pitfalls: **DispatchQueue에서 실행되는 코드에서는 RunLoop.current를 사용할 수 없음** (DispatchQueue thread는 일시적으로 생성되어있을 수 있으므로 RunLoop를 사용하는 것이 불가능하기 때문)
  */
 
 var threadRecorder: ThreadRecorder? = nil
@@ -110,6 +116,8 @@ RunLoop.current.schedule(after: .init(Date(timeIntervalSinceNow: 4.5)),
 
 /*:
  ## DispatchQueue scheduler
+
+ - options: **옵션 매개 변수 값을 전달할 수 있음**, DispatchQueue에 이미 설정된 값과 독립적으로 QoS(Quality of Service) 값 지정 가능
  */
 
 let serialQueue = DispatchQueue(label: "Serial queue")
@@ -136,6 +144,9 @@ PlaygroundPage.current.liveView = UIHostingController(rootView: view)
 
 /*:
  ## OperationQueue
+
+ - options: 옵션 매개 변수 값을 전달할 수 없음
+ - pitfalls: DispatchQueue와 유사하지만 큐들 간에 의존성을 가짐으로써 실행 순서를 제어할 수 있으며, maxConcurrentOperationCount 매개 변수를 조정하여 로드를 제어 할 수 있음
  */
 
 let operationQueue = OperationQueue()
