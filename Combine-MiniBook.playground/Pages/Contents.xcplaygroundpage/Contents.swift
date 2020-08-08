@@ -25,6 +25,7 @@
  ## Advanced Combine
  - Error Handling
  - Schedulers
+ - Custom Publisher
  */
 
 //: [Next](@next)
