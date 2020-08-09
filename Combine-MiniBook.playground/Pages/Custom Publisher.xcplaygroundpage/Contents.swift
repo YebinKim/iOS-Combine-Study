@@ -45,20 +45,35 @@ stringValues.publisher
  ## The subscription mechanism
 
  - Publisher를 구독하면 Subscription으로부터 요청을 받고 이벤트(values and completion)를 생성하는 구독을 인스턴스화 함
+
+
+
  - **Subscription의 생명 주기**
    - Subscriber가 Publisher를 **구독**
-   - Publusher가 **Subscription을 만들고** Subscriber에게 넘김 - ***receive(subscription:)* 메서드 호출**
-   - Subscriber는 Subscription에서 **원하는 값들을 request함** - Subscription의 *request(_:)* 메서드 호출
-   - Subscription이 작업을 시작하고 값을 내보내기 시작, Subscriber로부터 요구받은 값을 하나씩 전송 - Subscriber의 *receive(_:)* 메서드 호출
-   - 값을 받은 Subscriber는 이전까지 받았던 총 Demand에 새로 받은 값을 추가한 *Subscribers.Demand*를 반환
+   - Publusher가 **Subscription을 만들고** Subscriber에게 넘김
+     - ***receive(subscription:)* 메서드 호출**
+   - Subscriber는 Subscription에서 **원하는 값들을 request함**
+     - Subscription의 *request(_:)* 메서드 호출
+   - Subscription이 작업을 시작하고 값을 내보내기 시작, Subscriber로부터 요구받은 값을 하나씩 전송
+     - Subscriber의 *receive(_:)* 메서드 호출
+   - 값을 받은 Subscriber는 이전부터 누적된 Demand에 새로 받은 값을 추가한 *Subscribers.Demand*를 반환
+     - **Subscriber의 Demand는 누적됨**
    - Subscription은 전송한 값의 수가 받은 request 수에 도달할 때까지 값을 계속 전송
      - 요청받았던 만큼의 값을 보냈다면 Subscription은 새 request를 기다림
    - 위 과정 중 오류가 있거나 Subscription 값 소스가 완료되면 Subscription은 Subscriber의 ***receive(completion:)* 호출**
+
+
+
  - **Subscription의 역할**
    - Subscriber의 첫 Demand를 수락
    - Demand를 받으면 타이머 이벤트를 생성
    - Subscriber가 값을 받고 Demand를 반환할 때마다 처리 완료한 Demand count를 추가
    - configuration에서 요청한 값보다 더 많은 값을 제공하지 않는지 확인
+
+
+
+ - Subscription은 Subscriber와 Publisher 사이의 링크
+   - Subscription이 해제되면 Subscriber는 값을 받지 못한다. -> Subscription이 해제되면 모든 게 해제되기 때문
  */
 
 /*:
@@ -66,6 +81,9 @@ stringValues.publisher
 
  - Publishers emitting values
  - Building your subscription
+ - Adding required properties to your subscription
+ - Letting your subscription request values
+ - Activating your timer
  */
 
 struct DispatchTimerConfiguration {
@@ -119,6 +137,8 @@ private final class DispatchTimerSubscription<S: Subscriber>: Subscription where
     // 타이머 이벤트를 생성할 DispatchSourceTimer
     var source: DispatchSourceTimer? = nil
 
+    // Subscriber가 Subscription을 유지할 책임을 가진다.
+    // -> Subscription이 완료, 실패 또는 취소되지 않는 한 Subscription을 유지할 책임이 있음을 분명히 알 수 있음
     var subscriber: S?
 
     init(subscriber: S,
@@ -128,10 +148,77 @@ private final class DispatchTimerSubscription<S: Subscriber>: Subscription where
         self.times = configuration.times
     }
 
+    // request(_:) - Subscriber로부터 요구를 받는 메서드, protocol required method
+    // Demand가 합산되어 Subscriber가 요청한 총 값 수를 생성함
     func request(_ demand: Subscribers.Demand) {
+        // 첫 번째 검증은 configuration에 지정된 대로 Subscriber에 충분한 값을 이미 전송했는지 확인하는 것
+        // 즉, Publisher가 받은 Demand와 상관없이 최대 예상 값을 보낸 경우
+        guard times > .none else {
+            // 이 경우 완료 이벤트를 보냄으로써 Publisher가 값 전송을 완료했음을 Subscriber에 알릴 수 있음
+            subscriber?.receive(completion: .finished)
+            return
+        }
+
+        // 새 Demand를 추가하여 받은 요청된 값(requested)의 카운터를 늘림
+        requested += demand
+
+        // 타이머가 존재하지 않고, 요청 된 값이 있다면 작업 진행
+        if source == nil, requested > .none {
+            // 큐에서 DispatchSourceTimer를 생성
+            let source = DispatchSource.makeTimerSource(queue: configuration.queue)
+            // timer가 모든 configuration.interval 시간 이후에 실행되도록 예약
+            // Subscriber가 Subscription을 취소하거나 Subscription의 할당을 해제할 때까지 유지
+            source.schedule(deadline: .now() + configuration.interval,
+                            repeating: configuration.interval,
+                            leeway: configuration.leeway)
+
+            // 타이머에 대한 이벤트 처리기를 설정
+            // 약한 참조를 유지해야 이후 Subscription이 할당 해제될 수 있음
+            source.setEventHandler { [weak self] in
+                // 현재 요청 된 값이 있는지 확인
+                // Publisher는 현재 Demand없이 일시 중지 될 수 있음
+                guard let self = self,
+                    self.requested > .none else { return }
+
+                // Subscriber에 값을 보낼 것이므로 두 카운터를 모두 줄임
+                self.requested -= .max(1)
+                self.times -= .max(1)
+                _ = self.subscriber?.receive(.now())
+
+                // 전송할 총 값 수가 configuration에서 지정한 최대 값을 충족하면 Publisher가 완료된 것으로 생각 -> 완료 이벤트를 생성
+                if self.times == .none {
+                    self.subscriber?.receive(completion: .finished)
+                }
+            }
+
+            // source timer에 대한 참조를 저장
+            self.source = source
+            // 타이머 실행
+            source.activate()
+        }
     }
 
     func cancel() {
+        source = nil
+        subscriber = nil
+    }
+}
+
+// Publisher와 Subscription을 쉽게 연결할 수 있는 Operator를 정의
+extension Publishers {
+
+    static func timer(queue: DispatchQueue? = nil,
+                      interval: DispatchTimeInterval,
+                      leeway: DispatchTimeInterval = .nanoseconds(0),
+                      times: Subscribers.Demand = .unlimited)
+        -> Publishers.DispatchTimer {
+
+            return Publishers.DispatchTimer(
+                configuration: .init(queue: queue,
+                                     interval: interval,
+                                     leeway: leeway,
+                                     times: times)
+            )
     }
 }
 
