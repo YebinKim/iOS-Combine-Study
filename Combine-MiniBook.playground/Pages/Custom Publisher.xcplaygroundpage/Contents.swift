@@ -21,8 +21,14 @@ import Combine
 
 extension Publisher {
 
-    func unwrap<T>() -> Publishers.CompactMap<Self, T> where Output == Optional<T> {
+//    func unwrap<T>() -> Publishers.CompactMap<Self, T> where Output == Optional<T> {
+//        compactMap { $0 }
+//    }
+
+    func unwrap<T>() -> AnyPublisher<T, Never> where Optional<T> == Output {
         compactMap { $0 }
+        .assertNoFailure()
+        .eraseToAnyPublisher()
     }
 }
 
@@ -137,8 +143,9 @@ private final class DispatchTimerSubscription<S: Subscriber>: Subscription where
     // 타이머 이벤트를 생성할 DispatchSourceTimer
     var source: DispatchSourceTimer? = nil
 
-    // Subscriber가 Subscription을 유지할 책임을 가진다.
-    // -> Subscription이 완료, 실패 또는 취소되지 않는 한 Subscription을 유지할 책임이 있음을 분명히 알 수 있음
+    // Subscription이 Subscriber를 유지할 책임을 가진다.
+    // -> Subscription이 완료, 실패 또는 취소되지 않는 한 Subscriber를 유지할 책임이 있음을 분명히 알 수 있음
+    // subscriber은 강한 참조를 가지고 있음을 잘 볼 것
     var subscriber: S?
 
     init(subscriber: S,
@@ -174,6 +181,7 @@ private final class DispatchTimerSubscription<S: Subscriber>: Subscription where
 
             // 타이머에 대한 이벤트 처리기를 설정
             // 약한 참조를 유지해야 이후 Subscription이 할당 해제될 수 있음
+            // 계속 루프돌고 있다고 생각하고 있으면 이해하기 쉽다
             source.setEventHandler { [weak self] in
                 // 현재 요청 된 값이 있는지 확인
                 // Publisher는 현재 Demand없이 일시 중지 될 수 있음
@@ -219,6 +227,19 @@ extension Publishers {
                                      leeway: leeway,
                                      times: times)
             )
+    }
+}
+
+example(of: "DispatchTimer") {
+    let publisher = Publishers.timer(interval: .seconds(1))
+
+    let subscription = publisher
+        .sink { _ in
+            print("subscription 성공!")
+    }
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+        subscription.cancel()
     }
 }
 
