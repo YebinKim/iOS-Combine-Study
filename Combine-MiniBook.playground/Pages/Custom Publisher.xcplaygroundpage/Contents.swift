@@ -83,15 +83,11 @@ stringValues.publisher
  */
 
 /*:
- ## Publishers extension - 값을 생성하는 Subscription을 구현
-
- - Publishers emitting values
- - Building your subscription
- - Adding required properties to your subscription
- - Letting your subscription request values
- - Activating your timer
+ ## Emitting Values Example - Timer Operator
  */
+//: [Timer Operator](Timers)
 
+// MARK: Publisher가 방출할 값 정의
 struct DispatchTimerConfiguration {
     let queue: DispatchQueue?               // 타이머가 실행될 큐
     let interval: DispatchTimeInterval      // 구독 시간부터 시작하여 타이머가 실행되는 간격
@@ -99,6 +95,7 @@ struct DispatchTimerConfiguration {
     let times: Subscribers.Demand           // 수신하려는 타이머 이벤트 수
 }
 
+// MARK: DispatchTimer publisher를 Publishers extension에 추가
 extension Publishers {
 
     struct DispatchTimer: Publisher {
@@ -127,8 +124,10 @@ extension Publishers {
     }
 }
 
+// MARK: Subscription 클래스 생성
 private final class DispatchTimerSubscription<S: Subscriber>: Subscription where S.Input == DispatchTime {
 
+    // MARK: Required Properties
     // Subscriber가 전달한 configuration
     let configuration: DispatchTimerConfiguration
 
@@ -148,6 +147,7 @@ private final class DispatchTimerSubscription<S: Subscriber>: Subscription where
     // subscriber은 강한 참조를 가지고 있음을 잘 볼 것
     var subscriber: S?
 
+    // MARK: Initializing and canceling
     init(subscriber: S,
          configuration: DispatchTimerConfiguration) {
         self.configuration = configuration
@@ -155,7 +155,13 @@ private final class DispatchTimerSubscription<S: Subscriber>: Subscription where
         self.times = configuration.times
     }
 
-    // request(_:) - Subscriber로부터 요구를 받는 메서드, protocol required method
+    func cancel() {
+        source = nil
+        subscriber = nil
+    }
+
+    // MARK: request(_:) - Subscriber로부터 요구를 받는 메서드 (요청 값을 허용하는 메서드)
+    // protocol required method
     // Demand가 합산되어 Subscriber가 요청한 총 값 수를 생성함
     func request(_ demand: Subscribers.Demand) {
         // 첫 번째 검증은 configuration에 지정된 대로 Subscriber에 충분한 값을 이미 전송했는지 확인하는 것
@@ -171,6 +177,7 @@ private final class DispatchTimerSubscription<S: Subscriber>: Subscription where
 
         // 타이머가 존재하지 않고, 요청 된 값이 있다면 작업 진행
         if source == nil, requested > .none {
+            // MARK: Custom Timer 구성
             // 큐에서 DispatchSourceTimer를 생성
             let source = DispatchSource.makeTimerSource(queue: configuration.queue)
             // timer가 모든 configuration.interval 시간 이후에 실행되도록 예약
@@ -199,16 +206,12 @@ private final class DispatchTimerSubscription<S: Subscriber>: Subscription where
                 }
             }
 
+            // MARK: Custom Timer 활성화
             // source timer에 대한 참조를 저장
             self.source = source
             // 타이머 실행
             source.activate()
         }
-    }
-
-    func cancel() {
-        source = nil
-        subscriber = nil
     }
 }
 
@@ -230,12 +233,13 @@ extension Publishers {
     }
 }
 
+// MARK: Custom Timer 테스트
 example(of: "DispatchTimer") {
-    let publisher = Publishers.timer(interval: .seconds(1))
-
+    var logger = TimeLogger(sinceOrigin: true)
+    let publisher = Publishers.timer(interval: .seconds(1), times: .max(6))
     let subscription = publisher
-        .sink { _ in
-            print("subscription 성공!")
+        .sink { time in
+        print("Timer emits: \(time)", to: &logger)
     }
 
     DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
