@@ -247,4 +247,257 @@ example(of: "DispatchTimer") {
     }
 }
 
+/*:
+ ## Transforming Values Example - ShareReplay Operator
+ */
+//: [ShareReplay Operator](Networking)
+// MARK: Subscription 클래스 생성
+// struct가 아닌 class 생성 -> Publisher와 Subscriber가 Subscription에 접근하고 값을 변경할 수 있어야 하기 때문
+fileprivate final class ShareReplaySubscription<Output, Failure: Error>: Subscription {
+
+    let capacity: Int
+    var subscriber: AnySubscriber<Output,Failure>? = nil
+    var demand: Subscribers.Demand = .none
+    var buffer: [Output]
+    var completion: Subscribers.Completion<Failure>? = nil
+
+    // MARK: Subscription 초기화
+    init<S>(subscriber: S,
+            replay: [Output],
+            capacity: Int,
+            completion: Subscribers.Completion<Failure>?)
+        where S: Subscriber,
+        Failure == S.Failure,
+        Output == S.Input {
+
+            self.subscriber = AnySubscriber(subscriber)
+            self.buffer = replay
+            self.capacity = capacity
+            self.completion = completion
+    }
+
+    // MARK: Subscriber에 완료 이벤트를 보내는 Method
+    private func complete(with completion: Subscribers.Completion<Failure>) {
+        // method가 수행되는 동안 Subscriber를 유지함
+        guard let subscriber = subscriber else {
+            return
+        }
+
+        // 완료 이벤트를 보낸 후에는 모든 값을 무시함
+        self.subscriber = nil
+        self.completion = nil
+        self.buffer.removeAll()
+        subscriber.receive(completion: completion)
+    }
+
+    // MARK: Subscriber에 요구받은 값을 보내는 Method
+    private func emitAsNeeded() {
+        guard let subscriber = subscriber else {
+            return
+        }
+
+        while self.demand > .none && !buffer.isEmpty {
+            self.demand -= .max(1)
+            let nextDemand = subscriber.receive(buffer.removeFirst())
+
+            if nextDemand != .none {
+                self.demand += nextDemand
+            }
+        }
+
+        if let completion = completion {
+            complete(with: completion)
+        }
+    }
+
+    func request(_ demand: Subscribers.Demand) {
+        if demand != .none {    // .none일 경우 crash 발생
+            self.demand += demand
+        }
+
+        emitAsNeeded()
+    }
+
+    func cancel() {
+        complete(with: .finished)
+    }
+
+    // MARK: 값과 완료 이벤트를 허용하는 Method
+    func receive(_ input: Output) {
+        guard subscriber != nil else {
+            return
+        }
+
+        buffer.append(input)
+
+        if buffer.count > capacity {
+            buffer.removeFirst()
+        }
+
+        emitAsNeeded()
+    }
+
+    // MARK: Subscription을 종료하는 Method
+    func receive(completion: Subscribers.Completion<Failure>) {
+        guard let subscriber = subscriber else {
+            return
+        }
+
+        self.subscriber = nil
+        self.buffer.removeAll()
+        subscriber.receive(completion: completion)
+    }
+}
+
+// MARK: Publisher 구현
+extension Publishers {
+
+    final class ShareReplay<Upstream: Publisher>: Publisher {
+
+        typealias Output = Upstream.Output
+        typealias Failure = Upstream.Failure
+
+        // MARK: Properties
+        private let lock = NSRecursiveLock()
+        private let upstream: Upstream
+        private let capacity: Int
+        private var replay = [Output]()
+        private var subscriptions = [ShareReplaySubscription<Output, Failure>]()
+        private var completion: Subscribers.Completion<Failure>? = nil
+
+        // MARK: Initializing
+        init(upstream: Upstream, capacity: Int) {
+            self.upstream = upstream
+            self.capacity = capacity
+        }
+
+        // upstream으로부터 받은 값을 relay
+        private func relay(_ value: Output) {
+            lock.lock()
+
+            defer {
+                lock.unlock()
+            }
+
+            guard completion == nil else { return }
+
+            replay.append(value)
+
+            if replay.count > capacity {
+                replay.removeFirst()
+            }
+            subscriptions.forEach {
+                _ = $0.receive(value)
+            }
+        }
+
+        // Subscription의 완료 상태를 Publisher에 알리는 Method
+        private func complete(_ completion: Subscribers.Completion<Failure>) {
+            lock.lock()
+            defer { lock.unlock() }
+
+            self.completion = completion
+
+            subscriptions.forEach {
+                _ = $0.receive(completion: completion)
+            }
+        }
+
+        func receive<S: Subscriber>(subscriber: S)
+            where Failure == S.Failure,
+            Output == S.Input {
+                lock.lock()
+
+                defer {
+                    lock.unlock()
+                }
+
+                // Subscription 생성
+                let subscription = ShareReplaySubscription(
+                    subscriber: subscriber,
+                    replay: replay,
+                    capacity: capacity,
+                    completion: completion)
+
+                subscriptions.append(subscription)
+                subscriber.receive(subscription: subscription)
+
+                guard subscriptions.count == 1 else {
+                    return
+                }
+
+                // Subscription에 Publisher 등록 및 값 입력
+                let sink = AnySubscriber(
+                    receiveSubscription: { subscription in
+                        subscription.request(.unlimited)
+                },
+                    receiveValue: { [weak self] (value: Output) -> Subscribers.Demand in
+                        self?.relay(value)
+                        return .none
+                    },
+                    receiveCompletion: { [weak self] in
+                        self?.complete($0)
+                    }
+                )
+                upstream.subscribe(sink)
+        }
+    }
+}
+
+extension Publisher {
+    // MARK: Convenience Operator 추가
+    func shareReplay(capacity: Int = .max) -> Publishers.ShareReplay<Self> {
+        return Publishers.ShareReplay(upstream: self, capacity: capacity)
+    }
+}
+
+// MARK: Custom ShareReplay 테스트
+var logger = TimeLogger(sinceOrigin: true)
+let subject = PassthroughSubject<Int,Never>()
+let publisher = subject
+    .print("shareReplay")
+    .shareReplay(capacity: 2)
+
+subject.send(0)
+
+let subscription1 = publisher.sink(
+    receiveCompletion: {
+        print("subscription2 completed: \($0)", to: &logger)
+},
+    receiveValue: {
+        print("subscription2 received \($0)", to: &logger)
+}
+)
+
+subject.send(1)
+subject.send(2)
+subject.send(3)
+
+let subscription2 = publisher.sink(
+    receiveCompletion: {
+        print("subscription2 completed: \($0)", to: &logger)
+},
+    receiveValue: {
+        print("subscription2 received \($0)", to: &logger)
+}
+)
+
+subject.send(4)
+subject.send(5)
+subject.send(completion: .finished)
+
+var subscription3: Cancellable? = nil
+
+DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+    print("Subscribing to shareReplay after upstream completed")
+    subscription3 = publisher.sink(
+        receiveCompletion: {
+            print("subscription3 completed: \($0)", to: &logger)
+    },
+        receiveValue: {
+            print("subscription3 received \($0)", to: &logger)
+    }
+    )
+}
+
 //: [Next](@next)
