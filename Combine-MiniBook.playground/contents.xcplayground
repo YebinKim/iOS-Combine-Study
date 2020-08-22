@@ -3,7 +3,9 @@
     <pages>
         <page name='Contents'/>
         <page name='Introduction to Combine'/>
-        <page name='Publishers &amp; Subscribers'/>
+        <page name='Publishers'/>
+        <page name='Subscribers'/>
+        <page name='Cancellable'/>
         <page name='Transforming Operators'/>
         <page name='Filtering Operators'/>
         <page name='Combining Operator'/>
@@ -17,5 +19,6 @@
         <page name='Error Handling'/>
         <page name='Schedulers'/>
         <page name='Custom Publisher'/>
+        <page name='BackPressure'/>
     </pages>
 </playground>
